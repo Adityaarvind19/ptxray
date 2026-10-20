@@ -1,0 +1,17 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:12.6.3-devel-ubuntu22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y --no-install-recommends make python3
+      - name: Build tracer
+        run: make
+      - name: Unit tests (fatbinary parser, image selection, accounting, report)
+        run: make test
+      - name: Interposition smoke test (no GPU on CI runners)
+        run: make smoke
+      - name: Compile every GPU test and benchmark
+        run: make gpu GPU_ARCH=75

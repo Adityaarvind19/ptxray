@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# cudatrace launcher: runs a program with libcudatrace.so preloaded.
+#   cudatrace [-o trace.json] [-r report.txt] [--dump-ptx DIR] [--no-gpu-timing] -- program [args...]
+set -euo pipefail
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+lib="$here/build/libcudatrace.so"
+[[ -f $lib ]] || { echo "cudatrace: $lib not found, run 'make' first" >&2; exit 1; }
+
+usage() { sed -n '2,3p' "$0" | sed 's/^# //'; exit "${1:-0}"; }
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -o) export CUDATRACE_TRACE=$2; shift 2 ;;
+    -r) export CUDATRACE_REPORT=$2; shift 2 ;;
+    --dump-ptx) mkdir -p "$2"; export CUDATRACE_DUMP_PTX=$2; shift 2 ;;
+    --no-gpu-timing) export CUDATRACE_GPU_TIMING=0; shift ;;
+    -h|--help) usage ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
+[[ $# -gt 0 ]] || usage 1
+
+# Interposition only works on the shared CUDA runtime. Warn about nvcc's
+# default (-cudart static) instead of silently reporting nothing.
+prog=$(command -v "$1" || true)
+if [[ -n $prog ]] && file -L "$prog" 2>/dev/null | grep -q ELF; then
+  if ! ldd "$prog" 2>/dev/null | grep -q libcudart; then
+    if nm -D "$prog" 2>/dev/null | grep -q " cudaMalloc\b" || strings "$prog" 2>/dev/null | grep -q __cudaRegisterFatBinary; then
+      echo "cudatrace: warning: $1 seems statically linked against the CUDA runtime; rebuild with 'nvcc -cudart shared'" >&2
+    fi
+  fi
+fi
+exec env LD_PRELOAD="$lib${LD_PRELOAD:+:$LD_PRELOAD}" "$@"
