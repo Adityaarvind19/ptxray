@@ -48,13 +48,31 @@ Reproduce everything with [`notebooks/cudatrace_colab.ipynb`](notebooks/cudatrac
 
 The same source (24 heavily unrolled kernels in one module) built with native SASS and with PTX only:
 
-<!-- RESULTS:JIT — paste the table from results/jit.md here -->
+Measured on a Tesla T4 (sm_75), driver 580.82.07, CUDA 13 toolchain (PTX ISA 9.0), Google Colab. Median of 5 runs.
+
+| build / loading mode | context init ms | 1st launch ms | 2nd launch ms | other 23 kernels ms |
+|---|---|---|---|---|
+| SASS sm_75, lazy loading (default) | 150.8 | **0.74** | 0.015 | 0.53 |
+| PTX only, lazy loading, JIT cache off | 149.8 | **318.4** | 0.019 | 0.55 |
+| PTX only, lazy loading, JIT cache warm | 151.4 | **2.84** | 0.016 | 0.44 |
+| PTX only, eager loading, JIT cache off | **475.1** | 0.03 | 0.015 | 0.23 |
+
+- Shipping only PTX makes the first launch **~430× slower** (318 ms vs 0.74 ms). The driver runs ptxas on the whole module at that point; the other 23 kernels in the module then cost nothing extra.
+- The driver's JIT cache (`~/.nv/ComputeCache`) brings a repeat run down to 2.8 ms. Every fresh container or new driver pays the full cost again.
+- With `CUDA_MODULE_LOADING=EAGER` the same ~325 ms moves from the first launch into context creation (475 ms vs 151 ms).
+- cudatrace predicts this from the fatbinary alone (`no SASS for sm_75: driver JIT-compiles PTX compute_75`) and flags the missing `-gencode ...,code=sm_75`.
 
 ### Tracer overhead: `make bench`
 
 Host-side cost per empty-kernel launch, median of 5 runs of 100,000 launches:
 
-<!-- RESULTS:OVERHEAD — paste the table from results/overhead.md here -->
+| configuration | us / launch | overhead us / launch |
+|---|---|---|
+| no tracer | 2.57 | - |
+| cudatrace, API trace only (`CUDATRACE_GPU_TIMING=0`) | 4.00 | +1.43 |
+| cudatrace, API trace + GPU event timing (default) | 7.87 | +5.30 |
+
+This is the worst case (empty kernels, launch-bound). The default mode pays for two `cudaEventRecord` calls per launch. The API-only mode costs 1.4 µs per call.
 
 ### Test suite
 

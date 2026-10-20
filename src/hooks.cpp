@@ -319,6 +319,23 @@ const void* stub_of(cudaKernel_t k) {
   return it == kernel_handles().end() ? static_cast<const void*>(k) : it->second;
 }
 
+// Host time spent in __cudaGetKernel per kernel. With nvcc 12.8+/13 code this
+// is where lazy module loading, and therefore the driver's PTX JIT, happens:
+// the stub calls it once, on the kernel's first launch, before the launch call.
+std::unordered_map<const void*, uint64_t>& load_us() {
+  static auto* m = new std::unordered_map<const void*, uint64_t>();
+  return *m;
+}
+
+uint64_t take_load_us(const void* host_stub) {
+  std::lock_guard<std::mutex> lk(g_reg_mu);
+  auto it = load_us().find(host_stub);
+  if (it == load_us().end()) return 0;
+  uint64_t us = it->second;
+  load_us().erase(it);
+  return us;
+}
+
 int module_of(const void* host_stub) {
   std::lock_guard<std::mutex> lk(g_reg_mu);
   auto it = kernels_map().find(host_stub);
@@ -621,7 +638,10 @@ cudaError_t launch_common(const char* api, const void* host_stub, dim3 g, dim3 b
   if (timed) end_timed(s, p, r == cudaSuccess);
   else if (r == cudaSuccess) tracer().untimed_op(ct::Cat::Kernel);
   uint64_t t1 = now_us();
-  if (r == cudaSuccess) tracer().kernel_launch(name, t1 - t0, module_of(host_stub));
+  // A kernel's first launch also pays for loading its module (and JIT-compiling
+  // it from PTX if needed), whether that happened inside this call (older nvcc)
+  // or just before it in __cudaGetKernel (nvcc 12.8+/13).
+  if (r == cudaSuccess) tracer().kernel_launch(name, t1 - t0 + take_load_us(host_stub), module_of(host_stub));
   record_call(api, ct::Cat::Kernel, t0, t1, r, ra, "\"kernel\":\"" + ct::json_escape(name) + "\"," + a);
   after_first_call();
   return r;
@@ -820,11 +840,17 @@ CT_EXPORT cudaError_t CUDARTAPI cudaLaunchKernel_ptsz(const void* f, dim3 g, dim
 // nvcc 12.8+/13 launch path.
 CT_EXPORT cudaError_t CUDARTAPI __cudaGetKernel(cudaKernel_t* k, const void* host_stub) {
   PASSTHRU(__cudaGetKernel, k, host_stub);
-  cudaError_t r = real(k, host_stub);
+  uint64_t t0 = now_us();
+  cudaError_t r = real(k, host_stub);  // may load the module and JIT-compile its PTX
+  uint64_t t1 = now_us();
   if (r == cudaSuccess && k && *k) {
     std::lock_guard<std::mutex> lk(g_reg_mu);
     kernel_handles()[*k] = host_stub;
+    load_us()[host_stub] += t1 - t0;
   }
+  record_call("__cudaGetKernel (module load)", ct::Cat::Other, t0, t1, r, RA,
+              "\"kernel\":\"" + ct::json_escape(kernel_name(host_stub)) + "\"");
+  after_first_call();
   return r;
 }
 
