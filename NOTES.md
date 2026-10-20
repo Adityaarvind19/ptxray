@@ -60,7 +60,7 @@ Recording an event on a stream under capture would insert a node into the user's
 `cudaGetLastError` is sticky per thread. If an internal `cudaEventCreate` failed, the application would later see an error it never caused. `ErrorStateGuard` peeks before internal calls and clears afterwards, but only if the state was clean before, so a pending application error is never consumed.
 
 **Q: What is the overhead?**
-Per launch: two `cudaEventRecord` calls, a capture check, a mutex-protected append and a hash lookup for the kernel name. `make bench` measures it, and `CUDATRACE_GPU_TIMING=0` drops the event part.
+Per launch: two `cudaEventRecord` calls, a capture check, a mutex-protected append and a hash lookup for the kernel name. `make bench` measures it, and `PTXRAY_GPU_TIMING=0` drops the event part.
 
 ## 4. Process lifetime
 

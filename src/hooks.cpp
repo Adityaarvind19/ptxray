@@ -1,6 +1,6 @@
-// cudatrace interposition layer.
+// ptxray interposition layer.
 //
-// Built as libcudatrace.so and injected with LD_PRELOAD. Because a preloaded
+// Built as libptxray.so and injected with LD_PRELOAD. Because a preloaded
 // library comes first in the dynamic linker's global lookup scope, every call
 // a program (or a library such as libtorch_cuda.so) makes into the shared CUDA
 // runtime (libcudart.so) through its PLT binds to the functions defined here.
@@ -94,21 +94,21 @@ struct Settings {
   std::string report_path;  // empty = stderr
   size_t max_events = 1000000;
   size_t max_pending = 1 << 16;
-  std::string ptx_dir;  // CUDATRACE_DUMP_PTX: write embedded PTX here
+  std::string ptx_dir;  // PTXRAY_DUMP_PTX: write embedded PTX here
 };
 
 Settings load_settings() {
   Settings s;
   auto env = [](const char* k) -> const char* { const char* v = getenv(k); return v && *v ? v : nullptr; };
   auto falsy = [](const char* v) { return !strcmp(v, "0") || !strcmp(v, "off") || !strcmp(v, "false"); };
-  if (const char* v = env("CUDATRACE_DISABLE")) s.disabled = !falsy(v);
-  if (const char* v = env("CUDATRACE_GPU_TIMING")) s.gpu_timing = !falsy(v);
-  if (const char* v = env("CUDATRACE_MAX_EVENTS")) s.max_events = strtoull(v, nullptr, 10);
-  const char* t = env("CUDATRACE_TRACE");
-  if (!t) s.trace_path = "cudatrace-%p.json";
+  if (const char* v = env("PTXRAY_DISABLE")) s.disabled = !falsy(v);
+  if (const char* v = env("PTXRAY_GPU_TIMING")) s.gpu_timing = !falsy(v);
+  if (const char* v = env("PTXRAY_MAX_EVENTS")) s.max_events = strtoull(v, nullptr, 10);
+  const char* t = env("PTXRAY_TRACE");
+  if (!t) s.trace_path = "ptxray-%p.json";
   else if (!falsy(t)) s.trace_path = t;
-  if (const char* v = env("CUDATRACE_REPORT")) s.report_path = v;
-  if (const char* v = env("CUDATRACE_DUMP_PTX")) s.ptx_dir = v;
+  if (const char* v = env("PTXRAY_REPORT")) s.report_path = v;
+  if (const char* v = env("PTXRAY_DUMP_PTX")) s.ptx_dir = v;
   // Expand %p to the pid so child processes do not overwrite each other.
   for (std::string* p : {&s.trace_path, &s.report_path}) {
     size_t i = p->find("%p");
@@ -159,7 +159,7 @@ void* lookup(const char* name) {
 cudaError_t missing(const char* name) {
   static std::atomic<bool> warned{false};
   if (!warned.exchange(true))
-    fprintf(stderr, "==cudatrace== error: cannot find the real %s in libcudart\n", name);
+    fprintf(stderr, "==ptxray== error: cannot find the real %s in libcudart\n", name);
   return cudaErrorSharedObjectSymbolNotFound;
 }
 
@@ -889,7 +889,7 @@ CT_EXPORT cudaError_t CUDARTAPI cudaEventSynchronize(cudaEvent_t e) {
 // Runs from the ELF destructor list, i.e. after main() returned, after atexit
 // handlers (including at_exit_drain and libcudart's teardown) and after static
 // destructors, so frees made during teardown are already accounted for.
-__attribute__((destructor)) static void cudatrace_fini() {
+__attribute__((destructor)) static void ptxray_fini() {
   if (!g_used || settings().disabled) return;
   ct::Tracer& t = tracer();
   uint64_t wall = now_us();
@@ -900,9 +900,9 @@ __attribute__((destructor)) static void cudatrace_fini() {
     if (FILE* f = fopen(s.trace_path.c_str(), "w")) {
       t.write_trace(f, getpid());
       fclose(f);
-      rep += "==cudatrace== timeline written to " + s.trace_path + " (open in https://ui.perfetto.dev)\n";
+      rep += "==ptxray== timeline written to " + s.trace_path + " (open in https://ui.perfetto.dev)\n";
     } else {
-      rep += "==cudatrace== could not write " + s.trace_path + ": " + strerror(errno) + "\n";
+      rep += "==ptxray== could not write " + s.trace_path + ": " + strerror(errno) + "\n";
     }
   }
   FILE* out = stderr;

@@ -1,10 +1,10 @@
 """A small PyTorch training loop with two classic performance mistakes, to show
-what cudatrace sees inside a real framework:
+what ptxray sees inside a real framework:
 
   * the input batch is copied from pageable host memory every step, and
   * loss.item() forces a GPU->host sync every step.
 
-Run:  ./bin/cudatrace -o pytorch.json -- python examples/pytorch_train.py
+Run:  ./bin/ptxray -o pytorch.json -- python examples/pytorch_train.py
 Then: --fixed  removes both mistakes (pinned memory + logging every 50 steps).
 
 Note: cuBLAS/cuDNN launch their kernels through the CUDA driver API, which

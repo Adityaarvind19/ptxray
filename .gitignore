@@ -1,4 +1,4 @@
 build/
-cudatrace-*.json
+ptxray-*.json
 *.ptx
 __pycache__/

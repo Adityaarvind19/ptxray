@@ -268,7 +268,7 @@ LaunchStat Tracer::launch_stat(const std::string& k) const {
 
 // The "which GPU code actually runs, and how did it get there" section.
 std::string Tracer::code_object_section() const {
-  const std::string P = "==cudatrace== ";
+  const std::string P = "==ptxray== ";
   std::string r;
   auto line = [&](const std::string& s) { r += P + s + "\n"; };
   if (modules_.empty()) return r;
@@ -332,7 +332,7 @@ std::string Tracer::code_object_section() const {
 // pid 2 = GPU, one track per CUDA stream, plus a device-memory counter.
 void Tracer::write_trace(FILE* f, int pid) const {
   std::lock_guard<std::mutex> lk(mu_);
-  fputs("{\"displayTimeUnit\":\"ms\",\"otherData\":{\"tool\":\"cudatrace\"", f);
+  fputs("{\"displayTimeUnit\":\"ms\",\"otherData\":{\"tool\":\"ptxray\"", f);
   fprintf(f, ",\"pid\":%d,\"truncated\":%s},\n\"traceEvents\":[\n", pid, truncated_ ? "true" : "false");
   fprintf(f, "{\"ph\":\"M\",\"pid\":1,\"name\":\"process_name\",\"args\":{\"name\":\"Host: CUDA API (pid %d)\"}},\n", pid);
   fputs("{\"ph\":\"M\",\"pid\":2,\"name\":\"process_name\",\"args\":{\"name\":\"GPU\"}},\n", f);
@@ -360,7 +360,7 @@ void Tracer::write_trace(FILE* f, int pid) const {
 
 std::string Tracer::report(uint64_t wall_us, int pid) const {
   std::lock_guard<std::mutex> lk(mu_);
-  const std::string P = "==cudatrace== ";
+  const std::string P = "==ptxray== ";
   std::string r;
   auto line = [&](const std::string& s) { r += P + s + "\n"; };
 
@@ -512,7 +512,7 @@ std::string Tracer::report(uint64_t wall_us, int pid) const {
                         key.second.c_str(), e.count, e.first_site.c_str()));
   if (truncated_)
     diags.push_back(fmt("[trace] timeline truncated at %zu events (statistics above are complete); "
-                        "raise CUDATRACE_MAX_EVENTS", events_.size()));
+                        "raise PTXRAY_MAX_EVENTS", events_.size()));
 
   line("");
   if (diags.empty()) line("Diagnostics: none");

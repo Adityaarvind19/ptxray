@@ -1,5 +1,5 @@
-# cudatrace build
-#   make            -> build/libcudatrace.so
+# ptxray build
+#   make            -> build/libptxray.so
 #   make test       -> CPU unit tests (no GPU needed)
 #   make smoke      -> interposition smoke test (no GPU needed, needs libcudart.so)
 #   make gpu        -> GPU test programs + benchmark (needs nvcc)
@@ -23,7 +23,7 @@ NVBASE    := -O2 -g -lineinfo -cudart shared -Xlinker -export-dynamic -std=c++17
 NVFLAGS   ?= $(NVBASE) -gencode arch=compute_$(GPU_ARCH),code=sm_$(GPU_ARCH) -gencode arch=compute_$(GPU_ARCH),code=compute_$(GPU_ARCH)
 
 B := build
-LIB := $(B)/libcudatrace.so
+LIB := $(B)/libptxray.so
 GPU_TESTS := basic leak bad_free pageable streams small_copies oom
 GPU_BINS := $(addprefix $(B)/t_,$(GPU_TESTS)) $(B)/bench_launch $(B)/jit_sass $(B)/jit_ptx
 

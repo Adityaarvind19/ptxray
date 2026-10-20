@@ -1,4 +1,4 @@
-// cudatrace core: event recording, aggregation, diagnostics and output.
+// ptxray core: event recording, aggregation, diagnostics and output.
 //
 // This file has no CUDA dependency on purpose. The interposition layer
 // (hooks.cpp) translates intercepted CUDA calls into calls on Tracer, and

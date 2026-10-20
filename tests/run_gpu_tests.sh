@@ -3,14 +3,14 @@
 # Needs an NVIDIA GPU (e.g. a Colab/Kaggle T4). Build first: make gpu
 set -uo pipefail
 cd "$(dirname "$0")/.."
-LIB="$PWD/build/libcudatrace.so"
+LIB="$PWD/build/libptxray.so"
 OUT="$PWD/build/gpu-test-out"
 rm -rf "$OUT" && mkdir -p "$OUT"
 pass=0; fail=0
 
 run() {  # run NAME -> runs build/t_NAME under the tracer, report in $OUT/NAME.txt
   local name=$1
-  (cd "$OUT" && CUDATRACE_TRACE="$OUT/$name.json" CUDATRACE_REPORT="$OUT/$name.txt" \
+  (cd "$OUT" && PTXRAY_TRACE="$OUT/$name.json" PTXRAY_REPORT="$OUT/$name.txt" \
      LD_PRELOAD="$LIB" "$OLDPWD/build/t_$name" > "$OUT/$name.stdout" 2>&1)
 }
 expect() {  # expect NAME "pattern" "description"
@@ -64,7 +64,7 @@ echo "== code objects and the PTX JIT path"
 expect basic "-> loads SASS sm_[0-9]+ natively on sm_[0-9]+" "native SASS selected for a -gencode sm build"
 expect basic "PTX compute_[0-9]+" "embedded PTX image listed"
 run_env() { local name=$1 bin=$2; shift 2
-  (cd "$OUT" && env "$@" CUDATRACE_TRACE="$OUT/$name.json" CUDATRACE_REPORT="$OUT/$name.txt" \
+  (cd "$OUT" && env "$@" PTXRAY_TRACE="$OUT/$name.json" PTXRAY_REPORT="$OUT/$name.txt" \
      LD_PRELOAD="$LIB" "$OLDPWD/build/$bin" > "$OUT/$name.stdout" 2>&1); }
 run_env jit_sass jit_sass CUDA_CACHE_DISABLE=1; check jit_sass $? "SASS build runs"
 expect jit_sass "-> loads SASS sm_" "SASS-only build: native load predicted"

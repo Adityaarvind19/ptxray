@@ -30,8 +30,8 @@ row "PTX only, lazy loading, JIT cache warm"       jit_ptx  CUDA_CACHE_PATH="$CA
 row "PTX only, eager loading, JIT cache off"       jit_ptx  CUDA_CACHE_DISABLE=1 CUDA_MODULE_LOADING=EAGER
 rm -rf "$CACHE"
 echo
-echo "What cudatrace says about each binary:"
+echo "What ptxray says about each binary:"
 for b in jit_sass jit_ptx; do
-  CUDA_CACHE_DISABLE=1 CUDATRACE_TRACE=off CUDATRACE_REPORT=/dev/stdout LD_PRELOAD="$PWD/build/libcudatrace.so" \
+  CUDA_CACHE_DISABLE=1 PTXRAY_TRACE=off PTXRAY_REPORT=/dev/stdout LD_PRELOAD="$PWD/build/libptxray.so" \
     "./build/$b" | grep -E -- "->|\[ptx-jit\]|\[first-launch\]|ms first" | sed "s/^/  [$b] /"
 done
